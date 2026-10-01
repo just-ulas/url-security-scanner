@@ -4,9 +4,9 @@ from pydantic import BaseModel, Field
 from app.services.url_policy import URLPolicyError, validate_submitted_url
 
 app = FastAPI(
-    title="URL Security Scanner API",
+    title="bağlantı güvenlik kontrolü api'si",
     version="0.1.0",
-    description="Defensive URL reputation API scaffold; live scans are not enabled.",
+    description="savunma amaçlı bağlantı itibarı api'si; canlı tarama henüz açık değil.",
 )
 
 
@@ -14,23 +14,20 @@ class ScanRequest(BaseModel):
     url: str = Field(min_length=1, max_length=2048)
 
 
-@app.get("/healthz", tags=["operations"])
+@app.get("/healthz", tags=["işletim"])
 def health() -> dict[str, str]:
-    """Process health only; this says nothing about a URL's safety."""
+    """yalnızca api sürecinin çalıştığını bildirir; bağlantı güvenliğini ölçmez."""
     return {"status": "ok", "scan_execution": "disabled"}
 
 
-@app.post("/api/v1/scans", status_code=501, tags=["scans"])
+@app.post("/api/v1/scans", status_code=501, tags=["tarama"])
 def create_scan(request: ScanRequest) -> None:
-    """Validate accepted syntax but never invent or simulate a scan result."""
+    """adres biçimini kontrol eder ama tarama sonucu uydurmaz veya taklit etmez."""
     try:
         validate_submitted_url(request.url)
     except URLPolicyError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     raise HTTPException(
         status_code=501,
-        detail=(
-            "Live scanning is not configured. No provider was called and no security "
-            "verdict was produced."
-        ),
+        detail="canlı tarama henüz hazır değil. hiçbir güvenlik servisi çağrılmadı, sonuç üretilmedi.",
     )

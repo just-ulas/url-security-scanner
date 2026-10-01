@@ -4,30 +4,31 @@ export default function App() {
   return (
     <main className="shell">
       <header>
-        <p className="eyebrow">Defensive URL intelligence</p>
-        <h1>URL Security Scanner</h1>
+        <p className="eyebrow">bağlantılar hakkında daha net bilgi</p>
+        <h1>bağlantı güvenlik kontrolü</h1>
         <p className="intro">
-          A privacy-conscious reputation analysis platform. No scan providers are
-          connected in this development baseline.
+          bir bağlantı hakkında gerçek güvenlik servislerinden bilgi toplamayı
+          amaçlıyoruz. şimdilik bu servislerden hiçbirine bağlı değiliz.
         </p>
       </header>
       <section className="notice" role="status">
-        <strong>Live scanning is not available yet.</strong>
+        <strong>henüz tarama yapamıyoruz</strong>
         <p>
-          No URL has been submitted to a security provider and no verdict has been
-          produced. This interface will only show findings returned by real,
-          attributed providers after the integrations are configured.
+          bu sayfada hiçbir bağlantıyı güvenlik servisine göndermedik; elimizde
+          gösterilecek bir sonuç da yok. servisleri bağladığımızda hangi servisin
+          ne söylediğini ayrı ayrı göstereceğiz. bilgi gelmezse bunu da saklamadan
+          belirteceğiz.
         </p>
       </section>
       <section className="roadmap">
-        <h2>Platform status</h2>
+        <h2>şu an neler hazır?</h2>
         <ul>
-          <li>API health and input validation scaffold: available</li>
-          <li>Provider-backed URL analysis: not implemented</li>
-          <li>Database persistence and asynchronous worker: not implemented</li>
+          <li>api ayakta mı kontrolü ve bağlantı biçimi kontrolü: hazır</li>
+          <li>gerçek güvenlik servislerinden bilgi alma: henüz yok</li>
+          <li>sonuçları kaydetme ve arka planda tarama: henüz yok</li>
         </ul>
       </section>
-      <footer>Development scaffold · No production deployment</footer>
+      <footer>geliştirme aşamasında · yayına alınmadı</footer>
     </main>
   );
 }

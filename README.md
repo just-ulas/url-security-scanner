@@ -1,44 +1,45 @@
-# URL Security Scanner
+# bağlantı güvenlik kontrolü
 
-Defensive URL/domain reputation analysis platform scaffold. The repository currently contains **no legacy scanner implementation**: the original repository had only this project-description paragraph. No live scan provider has been integrated yet, and the application intentionally does not claim that a URL is safe or malicious.
+bazen bir bağlantıya tıklamadan önce “acaba güvenli mi?” diye düşünüyoruz. bu proje, bir bağlantı hakkında gerçek güvenlik servislerinden bilgi toplamayı amaçlıyor. ama şu an elimizde çalışan eski bir tarayıcı yoktu; depoda yalnızca kısa bir fikir açıklaması vardı. eklediğimiz yapı, projeyi buradan geliştirebilmek için hazırlanmış bir başlangıç iskeleti.
 
-> Current state: repository structure and development baseline are being established. Scan execution is disabled until real providers, persistence, worker processing, privacy disclosures, and operational controls are implemented and tested.
+**şu an hiçbir güvenlik servisine bağlanmıyoruz, gönderilen adresleri açmıyoruz ve tarama sonucu üretmiyoruz.** bu yüzden sayfa bir bağlantıyı güvenli ya da tehlikeli diye etiketlemiyor.
 
-## Repository layout
+## projede neler var?
 
 ```text
-backend/       FastAPI API scaffold, URL input policy, provider contracts, tests
-frontend/      React + TypeScript + Vite UI scaffold; no simulated scan output
-docs/          Architecture, security, provider, and development notes
-.github/       CI checks
-.env.example   Names of optional credentials; values are never committed
-compose.yaml   Local PostgreSQL and Redis development dependencies only
+backend/       api başlangıç kodu, adres biçim kontrolü ve testler
+frontend/      react ve typescript ile hazırlanmış arayüz
+backend/app/worker/  ileride kullanılacak işçi görevlerinin yeri
+docs/          mimari, güvenlik, geliştirme ve servis notları
+.github/       otomatik test ve derleme iş akışı
+.env.example   yerel ayar örneği; gerçek anahtar içermez
+compose.yaml   yerel geliştirme için postgresql ve redis
 ```
 
-## Development prerequisites
+## geliştirmek için gerekenler
 
-- Python 3.12+
-- Node.js 22+ and pnpm
-- Docker Engine + Docker Compose plugin (only needed for local Postgres/Redis)
-- Git
+- python 3.12 veya üzeri
+- node.js 22 veya üzeri ve pnpm
+- git
+- yalnızca yerel postgresql ve redis çalıştırmak için docker engine ile docker compose
 
-Start local data services with `docker compose up -d postgres redis`. The API and UI run separately during development. See [Development setup](docs/development.md).
+kurulum adımları için [geliştirme notlarına](docs/development.md) bak. bu yapı yerel geliştirme içindir; production ortamına kurulmuş değildir.
 
-## Current API behavior
+## şu an nasıl çalışıyor?
 
-- `GET /healthz` reports process health only; it is not a security scan.
-- `POST /api/v1/scans` validates the URL syntax/policy and returns `501 Not Implemented` for otherwise valid input until a real scanning pipeline is available.
-- There are no mock findings, fabricated detections, or “safe” verdicts.
+- `get /healthz` yalnızca api sürecinin ayakta olup olmadığını söyler; bir bağlantıyı taramaz.
+- `post /api/v1/scans` adresin biçimini kontrol eder. adres uygunsa bile tarama yapmaz ve `501` döndürür.
+- sahte bulgu, uydurma tespit ya da “güvenli” sonucu gösterilmez.
 
-## Security and privacy
+## güvenlik ve gizlilik
 
-See [Security model](docs/security-model.md), [Architecture](docs/architecture.md), and [External services](docs/external-services.md). User-submitted URLs may contain secrets (tokens, reset links, private paths). A future provider integration may disclose submitted URLs to that provider; explicit product disclosure, data minimization, retention controls, SSRF protections, and provider-specific attribution are required before enabling scanning.
+bir bağlantının içinde parola sıfırlama kodu ya da kişiye özel başka bilgiler bulunabilir. ileride gerçek servisleri bağlarsak, gönderdiğin adres bu servislerle paylaşılabilir. taramayı açmadan önce bunu açıkça anlatmamız; hangi veriyi sakladığımızı, ne zaman sildiğimizi ve dış bağlantıları nasıl kısıtladığımızı belirlememiz gerekiyor. daha fazlası için [güvenlik notlarını](docs/security-model.md), [mimari planı](docs/architecture.md) ve [dış servisler listesini](docs/external-services.md) inceleyebilirsin.
 
-## Status
+## proje durumu
 
-- [x] Main GitHub repository exists and is used as the source of truth.
-- [x] Baseline frontend/backend/docs/test/config structure.
-- [x] Honest disabled-scan API scaffold and safe URL input checks.
-- [ ] Real reputation provider integration and credentials.
-- [ ] Persistent scan records, queue/worker execution, migrations, and retention policy.
-- [ ] Full UI workflow, authentication/authorization, rate limits, deployment hardening, and production rollout.
+- [x] github deposu ve temel proje yapısı hazır.
+- [x] arayüz, api başlangıcı, testler ve geliştirme notları eklendi.
+- [x] adres biçimi kontrol ediliyor; api henüz tarama yapmadığını açıkça söylüyor.
+- [ ] gerçek güvenlik servislerine bağlanma ve gerekli erişim anahtarları.
+- [ ] tarama kayıtlarını saklama, veritabanı değişiklikleri ve arka plan işçisi.
+- [ ] oturum açma, kullanım sınırları, veri saklama/silme kuralları ve yayına hazırlık.

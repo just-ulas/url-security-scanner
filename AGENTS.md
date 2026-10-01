@@ -1,9 +1,9 @@
-# Repository working rules
+# bu depoda çalışırken
 
-- Preserve existing behavior; review the current code before editing it.
-- Never fabricate scan results, provider detections, or completed checks.
-- A missing, unreachable, rate-limited, or unconfigured provider is `unknown`/`error`, not `clean`.
-- Do not fetch arbitrary submitted URLs from the API process. Implement and review SSRF/network-egress defenses before any target fetch capability.
-- Keep credentials out of git and browser code. Document provider attribution, data sharing, quotas, and retention.
-- Run backend tests and frontend type/build checks before committing changes.
-- Production deployment requires explicit scope and security/operational review; this scaffold is not production-ready.
+- önce ilgili kodu oku; çalışan davranışı anlamadan değiştirme.
+- tarama sonucu, servis tespiti ya da yapılmamış kontrolü olmuş gibi gösterme.
+- erişilemeyen, kota sınırına takılan veya bağlı olmayan servis için sonucu “bilinmiyor” ya da “hata” olarak bırak; temiz deme.
+- api sürecinden gönderilen rastgele bağlantıları açma. hedefe istek eklemeden önce ssrf ve dış trafik korumalarını tamamla.
+- erişim anahtarlarını git'e veya tarayıcı koduna koyma. servis kaynağını, veri paylaşımını, kotaları ve saklama süresini belgeye ekle.
+- commit atmadan önce backend testlerini ve arayüz tür/derleme kontrollerini çalıştır.
+- production yayını için ayrıca kapsam belirlemesi ve güvenlik/işletim incelemesi gerekir; bu iskelet henüz yayına hazır değil.

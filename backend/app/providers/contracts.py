@@ -1,4 +1,4 @@
-"""Provider contracts only; no live provider adapter is implemented in this baseline."""
+"""ileride eklenecek gerçek güvenlik servisleri için ortak yanıt biçimi."""
 
 from dataclasses import dataclass
 from datetime import datetime

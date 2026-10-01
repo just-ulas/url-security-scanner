@@ -1,36 +1,36 @@
-# Architecture and implementation plan
+# mimari ve geliştirme planı
 
-## Selected baseline
+## seçilen başlangıç yapısı
 
-- **Frontend:** React, TypeScript, Vite. Lightweight operator-facing UI; no scan results are fabricated client-side.
-- **API:** Python 3.12+, FastAPI, Pydantic Settings.
-- **Persistence (planned):** PostgreSQL with SQLAlchemy + Alembic; scan records and provider-specific observations.
-- **Queue (planned):** Redis with a separately deployed worker. Queueing remains disabled until a durable job lifecycle is implemented.
-- **Local orchestration:** Docker Compose for development dependencies only; no production deployment is included.
-- **CI:** GitHub Actions for backend tests and frontend build/type checks.
+- **arayüz:** react, typescript ve vite. sahte tarama sonucu üretmeyen, kullanıcıya durumu açıkça anlatan bir arayüz.
+- **api:** python 3.12 veya üzeri, fastapi ve pydantic settings.
+- **veritabanı (ileride):** tarama kayıtları ve servis yanıtları için postgresql, sqlalchemy ve alembic.
+- **iş kuyruğu (ileride):** redis ve ayrı bir arka plan işçisi. kalıcı iş takibi kurulana kadar kuyruk kapalı kalacak.
+- **yerel geliştirme:** docker compose yalnızca yerel bağımlılıkları başlatmak için kullanılıyor; production kurulumu yok.
+- **otomatik kontroller:** github actions, backend testlerini ve arayüz derlemesini çalıştırıyor.
 
-## Intended request lifecycle
+## gerçek tarama açıldığında izlenecek yol
 
-1. Accept an HTTP(S) URL, canonicalize it without fetching it, and reject malformed inputs, userinfo, and non-public IP literals.
-2. Create a scan record and enqueue a job (not implemented yet).
-3. A worker invokes explicitly enabled reputation providers using each provider's documented API; it does not exploit, probe, or crawl targets.
-4. Store each provider result separately with provider name, observation time, provider reference, and an evidence/verdict status.
-5. Return a summary that distinguishes `malicious`, `suspicious`, `clean`, `unknown`, and `error`; `clean` is permitted only when a provider actually returns a clean verdict. Provider absence, timeout, quota exhaustion, or parsing errors must remain `unknown`/`error`, never a clean verdict.
-6. Expire raw URLs and provider payloads under a documented retention policy; redact secrets in logs.
+1. yalnızca `http` veya `https` bağlantılarını kabul et; adresi kontrol ederken bağlantının kendisini açma. hatalı adresleri, kullanıcı adı/parola içeren bağlantıları ve genel kullanıma açık olmayan ip adreslerini reddet.
+2. isteği veritabanına kaydet ve işi kuyruğa ekle. bu bölüm henüz yazılmadı.
+3. arka plan işçisi yalnızca açıkça etkinleştirilen güvenlik servislerinin belgelenmiş api'lerini çağırsın. hedefe saldırma, açık arama veya sayfaları dolaşma özelliği ekleme.
+4. her servisin yanıtını ayrı sakla; hangi servisten, ne zaman ve hangi kaynakla geldiğini koru.
+5. sonuçları `malicious`, `suspicious`, `clean`, `unknown` veya `error` olarak ayır. `clean` ancak servis açıkça böyle bir sonuç döndürürse kullanılabilir. servis yoksa, zaman aşımı olursa, kota dolarsa ya da yanıt okunamazsa “temiz” deme.
+6. ham bağlantıyı ve servis yanıtlarını belirli bir süre sonra sil; günlüklerdeki gizli bilgileri maskele.
 
-## SSRF and egress boundary
+## dış bağlantı ve ssrf sınırı
 
-The current API validates syntax and rejects literal non-global IP addresses but **does not resolve hostnames, fetch submitted URLs, or perform a scan**. Before any outbound fetch is added, implement DNS resolution and revalidation at connection time, redirect-by-redirect checks, private/link-local/loopback/reserved IPv4 and IPv6 denial, strict egress controls, response size/time limits, and DNS-rebinding defenses. Prefer provider APIs that accept a URL/hash over visiting the target directly. A firewall or dedicated egress proxy is required; application-level parsing alone is not a complete SSRF defense.
+mevcut api adres biçimini kontrol eder; alan adını çözümlemez, bağlantıyı açmaz ve tarama yapmaz. ileride dışarı istek göndermeden önce her yönlendirmede dns yanıtını ve bağlanılan ip adresini yeniden kontrol etmek, yerel/ağ içi adresleri engellemek, dns değişimini hesaba katmak ve dış trafiği kısıtlamak gerekir. mümkünse hedef siteyi açmak yerine güvenlik servislerinin kendi api'lerini kullan. yalnızca adres metnini kontrol etmek ssrf saldırılarına karşı yeterli değildir.
 
-## Trust and attribution
+## sonuçlara güven ve kaynak gösterimi
 
-Every future observation must retain the provider and timestamp. Conflicting provider results must be shown as disagreement rather than collapsed into an invented certainty score. Lack of a provider hit is not proof of safety. Heuristic findings must be labeled as heuristics and explain their evidence.
+gösterilen her bulgunun hangi servisten ve ne zaman geldiği belli olmalı. servisler anlaşamıyorsa bu farkı gizleme; tek bir kesinlik puanı uydurma. bir serviste sonuç bulunmaması bağlantının güvenli olduğunu kanıtlamaz. sezgisel kontroller yapılırsa bunları kesin tespit gibi değil, gerekçesiyle birlikte tahmin olarak göster.
 
-## Phases
+## aşamalar
 
-1. **Foundation (current):** repo structure, dev docs, health endpoint, URL syntax policy, tests, no scan execution.
-2. **Provider integration:** choose providers, obtain keys, implement response parsing/quotas/timeouts, contract tests, and user-facing data disclosure.
-3. **Durable pipeline:** schema/migrations, queue, idempotency, retries, audit/retention, and worker observability.
-4. **Product hardening:** UI, authentication, abuse controls, operational monitoring, security review, and deployment readiness.
+1. **başlangıç (mevcut):** depo yapısı, geliştirme notları, sağlık kontrolü, adres biçimi kontrolü ve testler. tarama yok.
+2. **gerçek servisler:** kullanılacak servisleri belirle, erişim anahtarlarını yapılandır, yanıtları ve kotaları test et, veri paylaşımını kullanıcıya anlat.
+3. **kalıcı işler:** veritabanı şeması, migration, kuyruk, tekrar deneme, kayıt takibi ve saklama/silme kuralları.
+4. **ürünü sağlamlaştırma:** arayüz akışını tamamla, oturum açma ve kullanım sınırları ekle, izleme ve güvenlik incelemesi yap.
 
-Production deployment is explicitly out of scope for the initial stage.
+ilk aşamada production yayını özellikle kapsam dışı.

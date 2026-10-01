@@ -1,28 +1,28 @@
-# External services and access requirements
+# dış servisler ve gereken erişimler
 
-No external URL reputation service is currently integrated or called.
+şu an projede hiçbir bağlantı itibarı servisi bağlı değil ve bu servislerden hiçbirine istek gönderilmiyor.
 
-## Candidate providers (selection pending)
+## ileride değerlendirilebilecek servisler
 
-| Service | Purpose | Credentials/access needed | Data/privacy considerations |
+| servis | ne için kullanılabilir? | gereken erişim | gizlilik notu |
 |---|---|---|---|
-| VirusTotal API v3 | URL/domain reputation and provider-attributed engine observations | User-provisioned API key with documented URL/report permissions and quota | Submitted URLs/identifiers are sent to VirusTotal; plan limits and sharing semantics must be reviewed before enabling |
-| Google Safe Browsing Lookup API | Known unsafe URL lookup | Google Cloud project, enabled Safe Browsing API, API key, and applicable quota/billing configuration | Submitted URL is sent to Google; terms, attribution, quota, and privacy disclosure must be reviewed |
-| URLhaus (abuse.ch) | Malware URL intelligence feed/query where supported | Confirm current public API/feed rules; token may be required for some endpoints | Query identifiers/URLs may be disclosed; observe service rate limits and usage terms |
+| virustotal api v3 | bağlantı ve alan adı itibarı, kaynak gösterilen servis sonuçları | gerekli uç noktalara izin veren bir api anahtarı ve uygun kota | gönderilen bağlantı ya da kimlik bilgisi virustotal ile paylaşılır; kullanım koşulları ve paylaşım biçimi önceden incelenmeli |
+| google safe browsing | bilinen zararlı bağlantıları sorgulama | google cloud projesi, etkin api, api anahtarı ve gerekiyorsa kota/faturalandırma ayarı | sorgulanan bağlantı google'a gider; koşullar ve gizlilik açıklaması kontrol edilmeli |
+| urlhaus (abuse.ch) | zararlı yazılım bağlantısı bilgisi veya akışları | kullanılacak uç noktanın güncel koşulları; bazı işlemlerde erişim anahtarı gerekebilir | sorgu bilgisi paylaşılabilir; servis sınırlarına uyulmalı |
 
-Providers are candidates, not commitments. Do not put credentials in chat or source control. Store them in a secret manager/environment settings with least privilege. The app must expose which providers actually ran, their timestamps, and any failure/quota state.
+bunlar şu an bağlı servisler değil, yalnızca değerlendirilecek seçenekler. erişim anahtarlarını sohbete veya kaynak koduna yazma. ileride her sonuçta hangi servisin çalıştığı, ne zaman yanıt verdiği ve hata/kota durumu gösterilmeli.
 
-## Other infrastructure (planned)
+## ileride gereken altyapı
 
-- PostgreSQL: durable scan/provider-result records and migration history.
-- Redis: job queue and short-lived coordination.
-- GitHub Actions: repository CI; GitHub repository access is already configured.
+- postgresql: tarama ve servis yanıtı kayıtları.
+- redis: arka plan işleri için kuyruk.
+- github actions: kaynak kod kontrolleri; depo erişimi zaten yapılandırılmış.
 
-## Required permissions before integrations
+## servisleri bağlamak için gereken izinler
 
-1. The user chooses which provider(s) to enable and supplies/authorizes an API key via an approved secret-setting mechanism.
-2. For Google Safe Browsing, a Google Cloud project owner must enable the API and configure key restrictions/quota/billing if applicable.
-3. For VirusTotal, the API key must be permitted to use the needed endpoints within the selected plan's limits.
-4. Outbound HTTPS access from an isolated worker must be allowed only to the selected provider endpoints. No broad arbitrary-target egress is needed for reputation-only provider calls.
+1. önce hangi servislerin kullanılacağına karar verilmeli; anahtarlar güvenli bir ayar alanına eklenmeli.
+2. google safe browsing seçilirse google cloud projesinin sahibi api'yi açmalı ve anahtar ile kota ayarlarını yapmalı.
+3. virustotal seçilirse kullanılan hesap ve anahtar, gerekli sorguları plan sınırları içinde yapabilmeli.
+4. ayrı işçinin yalnızca seçilen servislerin https adreslerine çıkmasına izin verilmeli. itibar sorgusu için rastgele hedeflere bağlantı açmaya gerek yok.
 
-No API key or provider access was present in the inspected project/repository. Until granted and verified, scans remain disabled.
+inceleme sırasında depoda servis anahtarı veya dış servis erişimi bulunmadı. gerçek bir servis bağlanıp doğrulanana kadar tarama kapalı kalacak.

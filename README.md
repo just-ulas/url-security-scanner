@@ -1,45 +1,70 @@
 # bağlantı güvenlik kontrolü
 
-bazen bir bağlantıya tıklamadan önce “acaba güvenli mi?” diye düşünüyoruz. bu proje, bir bağlantı hakkında gerçek güvenlik servislerinden bilgi toplamayı amaçlıyor. ama şu an elimizde çalışan eski bir tarayıcı yoktu; depoda yalnızca kısa bir fikir açıklaması vardı. eklediğimiz yapı, projeyi buradan geliştirebilmek için hazırlanmış bir başlangıç iskeleti.
+bir bağlantı şüpheli göründüğünde, tahmin yerine kaynak gösteren kontroller görmek istiyoruz. bu proje; gerçek itibar servislerini, url'nin dns/https/http yanıtını ve servise ait ölçüm zamanını tek yerde gösteren savunma amaçlı bir web uygulamasıdır.
 
-**şu an hiçbir güvenlik servisine bağlanmıyoruz, gönderilen adresleri açmıyoruz ve tarama sonucu üretmiyoruz.** bu yüzden sayfa bir bağlantıyı güvenli ya da tehlikeli diye etiketlemiyor.
+**bu sürüm geliştirme betasıdır; production'a yayımlanmadı.** uygulama gerçek api ve worker akışını, veritabanı kayıtlarını ve url sorgulama adapter'larını içeriyor. ancak erişim anahtarları sağlanmadığı için virustotal, google safe browsing ve urlhaus şu anda ağa istek göndermiyor. anahtarı olmayan servis “bağlı değil”, eşleşme bulamayan servis “bilinmiyor” görünür; sahte tespit veya uydurma sonuç yoktur.
 
-## projede neler var?
+## proje yapısı
 
 ```text
-backend/       api başlangıç kodu, adres biçim kontrolü ve testler
-frontend/      react ve typescript ile hazırlanmış arayüz
-backend/app/worker/  ileride kullanılacak işçi görevlerinin yeri
-docs/          mimari, güvenlik, geliştirme ve servis notları
-.github/       otomatik test ve derleme iş akışı
-.env.example   yerel ayar örneği; gerçek anahtar içermez
-compose.yaml   yerel geliştirme için postgresql ve redis
+backend/
+  app/api/          tarama api şemaları
+  app/core/         ayarlar ve redis bağımlılığı
+  app/providers/    virustotal, google safe browsing ve urlhaus adapter'ları
+  app/services/     url politikası, tarama kuyruğu ve güvenli metadata isteği
+  app/worker/       redis/rq arka plan işçisi
+  migrations/       alembic veritabanı sürümleri
+  tests/            api, adapter, worker, veri modeli ve ssrf testleri
+frontend/
+  src/              react/typescript arayüzü
+  nginx.conf        api proxy ve istek sınırları
+compose.yaml        yerel beta: arayüz, api, postgresql, redis, worker
+.github/workflows/ci.yml
+.env.example       gizli olmayan yerel ayar örneği
 ```
 
-## geliştirmek için gerekenler
+## yerel geliştirme
 
-- python 3.12 veya üzeri
-- node.js 22 veya üzeri ve pnpm
-- git
-- yalnızca yerel postgresql ve redis çalıştırmak için docker engine ile docker compose
+python 3.12+, node.js 22+, pnpm ve docker compose gerekir. ayrıntılar ve docker dışı geliştirme yolu için [geliştirme notlarına](docs/development.md) bak.
 
-kurulum adımları için [geliştirme notlarına](docs/development.md) bak. bu yapı yerel geliştirme içindir; production ortamına kurulmuş değildir.
+```bash
+cp .env.example .env
+docker compose up -d --build
+```
 
-## şu an nasıl çalışıyor?
+arayüz `http://127.0.0.1:5173` adresinde açılır. bu yalnızca yerel geliştirme ortamıdır. uygulama portları genel ağa açılmamıştır. api belgeleri `http://127.0.0.1:5173/docs` adresindedir.
 
-- `get /healthz` yalnızca api sürecinin ayakta olup olmadığını söyler; bir bağlantıyı taramaz.
-- `post /api/v1/scans` adresin biçimini kontrol eder. adres uygunsa bile tarama yapmaz ve `501` döndürür.
-- sahte bulgu, uydurma tespit ya da “güvenli” sonucu gösterilmez.
+## gerçek tarama nasıl çalışıyor?
 
-## güvenlik ve gizlilik
+- `post /api/scans` bağlantıyı doğrular, tarama kaydı açar ve işi redis/rq kuyruğuna ekler.
+- worker public dns yanıtını kontrol eder, yalnızca doğruladığı ip'lere bağlanır ve her yönlendirmede yeniden kontrol yapar. yerel/ağ içi ip'ler, kimlik bilgisi içeren url'ler ve varsayılan olmayan portlar engellenir.
+- hedefe en fazla beş yönlendirme izlenir; zaman aşımı ve okunabilecek yanıt verisi sınırlandırılır. yanıt gövdesi saklanmaz. bu, tam içerik ya da zararlı yazılım analizi yaptığı anlamına gelmez.
+- ayarlı virustotal, google safe browsing ve urlhaus adapter'ları yalnızca ilgili sağlayıcının gerçek yanıtını kaydeder.
+- `get /api/scans/{id}` tarama durumunu, `get /api/scans/{id}/results` kaynak sonuçlarını verir.
 
-bir bağlantının içinde parola sıfırlama kodu ya da kişiye özel başka bilgiler bulunabilir. ileride gerçek servisleri bağlarsak, gönderdiğin adres bu servislerle paylaşılabilir. taramayı açmadan önce bunu açıkça anlatmamız; hangi veriyi sakladığımızı, ne zaman sildiğimizi ve dış bağlantıları nasıl kısıtladığımızı belirlememiz gerekiyor. daha fazlası için [güvenlik notlarını](docs/security-model.md), [mimari planı](docs/architecture.md) ve [dış servisler listesini](docs/external-services.md) inceleyebilirsin.
+sağlayıcı eşleşmesi olmaması “güvenli” demek değildir. her motor sonucu ayrı gösterilir; genel özet yalnızca eldeki gerçek sonuçlardan hesaplanır. servisler, kaynak alanları ve yorumlama sınırları [resmi api notlarında](docs/provider-api-notes.md) yazılıdır.
 
-## proje durumu
+## erişim ve sınırlamalar
 
-- [x] github deposu ve temel proje yapısı hazır.
-- [x] arayüz, api başlangıcı, testler ve geliştirme notları eklendi.
-- [x] adres biçimi kontrol ediliyor; api henüz tarama yapmadığını açıkça söylüyor.
-- [ ] gerçek güvenlik servislerine bağlanma ve gerekli erişim anahtarları.
-- [ ] tarama kayıtlarını saklama, veritabanı değişiklikleri ve arka plan işçisi.
-- [ ] oturum açma, kullanım sınırları, veri saklama/silme kuralları ve yayına hazırlık.
+- isteğe bağlı servis anahtarları yalnızca `.env` veya güvenli sunucu ortam değişkenlerinde tutulur; sohbete veya kaynak koda eklenmez. [dış servis ve erişim notlarına](docs/external-services.md) bak.
+- taranan url veritabanına yazılır; url içindeki sorgu parametreleri gizli bilgi içerebilir ve anahtarı ayarlı servislere gönderilebilir.
+- şu an oturum açma, kullanıcı bazlı yetkilendirme, otomatik veri silme ve production secret yönetimi yok. yerel geliştirme dışında çalıştırma veya genel internete açma.
+- asn ve alan adı kayıt bilgisi sağlayıcısı bağlı değildir. teknoloji bilgisi yalnızca sunucunun yanıt başlıklarından alınan ipucudur.
+- tehdit arama, port tarama, exploit, sayfa dolaşma veya hedefe zarar verecek işlem bu projenin kapsamında değildir.
+
+## testler
+
+```bash
+.venv/bin/python -m pytest -q backend/tests
+.venv/bin/ruff check backend
+cd frontend && pnpm install --frozen-lockfile && pnpm typecheck && pnpm build
+```
+
+## durum
+
+- api, postgresql şeması ve alembic migration'ı hazır.
+- redis kuyruğu, worker ve gerçek sağlayıcı adapter'ları hazır.
+- url girdisi, dns yanıtı ve yönlendirmelerde ssrf engelleri hazır.
+- yerel arayüz, api proxy, testler ve ci hazır.
+- hiçbir api anahtarı ayarlı değil; canlı itibar servisi yanıtı henüz doğrulanmadı.
+- kimlik doğrulama, veri saklama/silme, üretim gözlemi ve güvenlik incelemesi tamamlanmadı.

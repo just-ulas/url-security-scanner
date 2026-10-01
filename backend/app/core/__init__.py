@@ -1,0 +1,1 @@
+"""ayarlar ve uygulama çekirdeği."""

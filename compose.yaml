@@ -2,30 +2,106 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: scanner
-      POSTGRES_USER: scanner
-      POSTGRES_PASSWORD: scanner
-    ports:
-      - "127.0.0.1:5432:5432"
+      POSTGRES_DB: ${POSTGRES_DB:-scanner}
+      POSTGRES_USER: ${POSTGRES_USER:-scanner}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-development-only}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U scanner -d scanner"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-scanner} -d ${POSTGRES_DB:-scanner}"]
       interval: 5s
       timeout: 3s
-      retries: 10
+      retries: 20
+    networks: [appnet]
+    restart: unless-stopped
+
   redis:
     image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes"]
-    ports:
-      - "127.0.0.1:6379:6379"
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1000"]
     volumes:
       - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
+      retries: 20
+    networks: [appnet]
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-scanner}:${POSTGRES_PASSWORD:-local-development-only}@postgres:5432/${POSTGRES_DB:-scanner}
+      REDIS_URL: redis://redis:6379/0
+      VIRUSTOTAL_API_KEY: ${VIRUSTOTAL_API_KEY:-}
+      GOOGLE_SAFE_BROWSING_API_KEY: ${GOOGLE_SAFE_BROWSING_API_KEY:-}
+      URLHAUS_AUTH_KEY: ${URLHAUS_AUTH_KEY:-}
+      SCAN_RATE_LIMIT_PER_MINUTE: ${SCAN_RATE_LIMIT_PER_MINUTE:-5}
+      SCAN_QUEUE_LIMIT: ${SCAN_QUEUE_LIMIT:-250}
+      SCAN_JOB_TIMEOUT_SECONDS: ${SCAN_JOB_TIMEOUT_SECONDS:-90}
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=2)"]
+      interval: 10s
+      timeout: 4s
       retries: 10
+      start_period: 30s
+    networks: [appnet]
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: ["python", "-m", "app.worker.runner"]
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-scanner}:${POSTGRES_PASSWORD:-local-development-only}@postgres:5432/${POSTGRES_DB:-scanner}
+      REDIS_URL: redis://redis:6379/0
+      VIRUSTOTAL_API_KEY: ${VIRUSTOTAL_API_KEY:-}
+      GOOGLE_SAFE_BROWSING_API_KEY: ${GOOGLE_SAFE_BROWSING_API_KEY:-}
+      URLHAUS_AUTH_KEY: ${URLHAUS_AUTH_KEY:-}
+      SCAN_JOB_TIMEOUT_SECONDS: ${SCAN_JOB_TIMEOUT_SECONDS:-90}
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      api: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "from app.core.runtime import get_redis; get_redis().ping()"]
+      interval: 10s
+      timeout: 4s
+      retries: 10
+    networks: [appnet, egress]
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:5173:80"
+    depends_on:
+      api: {condition: service_healthy}
+    networks: [appnet]
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   redis_data:
+
+networks:
+  appnet:
+    internal: true
+  egress:
+    driver: bridge

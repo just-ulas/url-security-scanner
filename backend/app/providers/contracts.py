@@ -1,4 +1,4 @@
-"""ileride eklenecek gerçek güvenlik servisleri için ortak yanıt biçimi."""
+"""gerçek güvenlik servisleri için küçük ve sabit ortak yanıt modeli."""
 
 from dataclasses import dataclass
 from datetime import datetime

@@ -1,1 +1,1 @@
-"""Background job scaffolding; live scan processing is disabled."""
+"""redis kuyruğundan kalıcı tarama işleri çalıştıran worker."""

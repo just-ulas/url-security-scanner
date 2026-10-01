@@ -13,6 +13,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: python -m pip install -e 'backend[dev]'
+      - run: ruff check backend
       - run: python -m pytest -q backend/tests
   frontend:
     runs-on: ubuntu-latest

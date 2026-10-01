@@ -1,28 +1,25 @@
 # dış servisler ve gereken erişimler
 
-şu an projede hiçbir bağlantı itibarı servisi bağlı değil ve bu servislerden hiçbirine istek gönderilmiyor.
+üç gerçek itibar servisi için adapter kodu hazır. **bu oturumda herhangi bir gerçek servis anahtarı yok; adapter'lar `not_configured` döndürüyor ve bu servislere istek atmıyor.** canlı endpoint doğrulaması yapılmış sayılmaz. anahtarları bu depoya, sohbete veya arayüze koyma; sunucu tarafındaki `.env` ya da ileride kurulacak secret manager üzerinden sağlamalısın.
 
-## ileride değerlendirilebilecek servisler
+| servis | hangi yanıt kullanılır? | gereken izin/ayar |
+|---|---|---|
+| virustotal api v3 | mevcut url raporundaki engine sayıları ve analiz tarihi | virustotal hesabı ve url report uç noktasını çağırabilen api key; hesap/kota bu erişimi vermeli |
+| google safe browsing lookup v4 | bilinen tehdit listelerinde url eşleşmesi | google cloud projesinde safe browsing api etkinleştirmesi ve bu api için geçerli api key; anahtarın restriction ve kota ayarı doğru olmalı |
+| urlhaus community api | mevcut urlhaus kaydı, durum, etiket ve kayıt tarihi | abuse.ch community api key (`auth-key`) ve query endpoint erişimi |
 
-| servis | ne için kullanılabilir? | gereken erişim | gizlilik notu |
-|---|---|---|---|
-| virustotal api v3 | bağlantı ve alan adı itibarı, kaynak gösterilen servis sonuçları | gerekli uç noktalara izin veren bir api anahtarı ve uygun kota | gönderilen bağlantı ya da kimlik bilgisi virustotal ile paylaşılır; kullanım koşulları ve paylaşım biçimi önceden incelenmeli |
-| google safe browsing | bilinen zararlı bağlantıları sorgulama | google cloud projesi, etkin api, api anahtarı ve gerekiyorsa kota/faturalandırma ayarı | sorgulanan bağlantı google'a gider; koşullar ve gizlilik açıklaması kontrol edilmeli |
-| urlhaus (abuse.ch) | zararlı yazılım bağlantısı bilgisi veya akışları | kullanılacak uç noktanın güncel koşulları; bazı işlemlerde erişim anahtarı gerekebilir | sorgu bilgisi paylaşılabilir; servis sınırlarına uyulmalı |
+anahtar veya sağlayıcı yanıtı olmadığı için bu proje şu anda canlı itibar tespiti yapmıyor. gerçek bir servis anahtarı olmadan yalnızca yerel tarama akışının, url politikalarının ve sağlayıcı yok durumunun testleri yapıldı. her adapter'ın gerçek key ile denemesi öncesinde ilgili servisin güncel kotalarını ve kullanım şartlarını doğrula.
 
-bunlar şu an bağlı servisler değil, yalnızca değerlendirilecek seçenekler. erişim anahtarlarını sohbete veya kaynak koduna yazma. ileride her sonuçta hangi servisin çalıştığı, ne zaman yanıt verdiği ve hata/kota durumu gösterilmeli.
+## tarama verisinin paylaşımı
 
-## ileride gereken altyapı
+provider lookup'ı url'yi ilgili servise gönderir. url'nin path/query bölümü parola sıfırlama kodu, erişim token'ı veya kişisel veri içeriyorsa bu bilgi servise gidebilir. uygulama taramayı veritabanına kaydeder. mevcut geliştirme sürümünde otomatik saklama/silme süresi belirlenmemiştir. hassas/kişiye özel bağlantıları tarama.
 
-- postgresql: tarama ve servis yanıtı kayıtları.
-- redis: arka plan işleri için kuyruk.
-- github actions: kaynak kod kontrolleri; depo erişimi zaten yapılandırılmış.
+google api key lookup isteğinde query parametresi olarak gönderilir. bu kod api anahtarını kullanıcıya dönen yanıta koymaz; yine de production proxy, tracing ve hata günlüklerinin query string'i kaydetmesini engelle.
 
-## servisleri bağlamak için gereken izinler
+## metadata için dış ağ
 
-1. önce hangi servislerin kullanılacağına karar verilmeli; anahtarlar güvenli bir ayar alanına eklenmeli.
-2. google safe browsing seçilirse google cloud projesinin sahibi api'yi açmalı ve anahtar ile kota ayarlarını yapmalı.
-3. virustotal seçilirse kullanılan hesap ve anahtar, gerekli sorguları plan sınırları içinde yapabilmeli.
-4. ayrı işçinin yalnızca seçilen servislerin https adreslerine çıkmasına izin verilmeli. itibar sorgusu için rastgele hedeflere bağlantı açmaya gerek yok.
+hedefe doğrudan http isteği yalnızca worker tarafından, dns/ip/redirect denetimiyle yapılır. provider api'leri, veritabanı ve redis dışındaki egress bir ağ/firewall allowlist'i ile henüz sınırlandırılmış değildir. asn ve domain registration sorgusu için ek servis bağlanmamıştır; arayüz bunu açıkça “bağlı değil” gösterir.
 
-inceleme sırasında depoda servis anahtarı veya dış servis erişimi bulunmadı. gerçek bir servis bağlanıp doğrulanana kadar tarama kapalı kalacak.
+## gerekli dış izinler
+
+anahtarları etkinleştirmeden önce hesap/organization yöneticisinin ilgili resmi servis panelinden key oluşturması gerekir. güvenlik gereği anahtarı bu sohbete gönderme. geçerli bir sunucu secret alanı/connector henüz bağlı değildir; ilk local test için `.env` dosyasına kendin güvenli biçimde ekleyebilir veya ileride hosting ortamında secret olarak tanımlayabilirsin. production deployment bu aşamada yapılmadı.

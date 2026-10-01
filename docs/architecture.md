@@ -1,36 +1,39 @@
 # mimari ve geliştirme planı
 
-## seçilen başlangıç yapısı
+## mevcut bileşenler
 
-- **arayüz:** react, typescript ve vite. sahte tarama sonucu üretmeyen, kullanıcıya durumu açıkça anlatan bir arayüz.
-- **api:** python 3.12 veya üzeri, fastapi ve pydantic settings.
-- **veritabanı (ileride):** tarama kayıtları ve servis yanıtları için postgresql, sqlalchemy ve alembic.
-- **iş kuyruğu (ileride):** redis ve ayrı bir arka plan işçisi. kalıcı iş takibi kurulana kadar kuyruk kapalı kalacak.
-- **yerel geliştirme:** docker compose yalnızca yerel bağımlılıkları başlatmak için kullanılıyor; production kurulumu yok.
-- **otomatik kontroller:** github actions, backend testlerini ve arayüz derlemesini çalıştırıyor.
+- **arayüz:** react + typescript + vite. same-origin api istekleri nginx üzerinden api'ye gider; tarama durumunu sorgular ve gerçek kayıtlı veriyi gösterir.
+- **api:** fastapi. url doğrulama, ip bazlı basit rate limit, aynı url için aktif tarama birleştirme, tarama kaydı ve redis kuyruğu yönetimi.
+- **veritabanı:** postgresql 16. `targets`, `scans`, `scan_metadata` ve `provider_results` tabloları sqlalchemy modelleriyle tanımlı; alembic migration ile kurulur.
+- **iş kuyruğu:** redis 7 + rq. api işi kuyruğa ekler; bağımsız worker metadata kontrolünü ve itibar provider'larını çalıştırır.
+- **itibar servisleri:** virustotal v3, google safe browsing lookup v4 ve urlhaus community api adapter'ları. anahtarlar ayarlı değilse ağ çağrısı yapılmaz.
+- **hedef metadata:** yalnızca worker dış ağa çıkar. dns sonuçlarının tümü public değilse istek durur, doğrulanan adresler dns sabitlemesiyle kullanılır, her yönlendirme baştan denetlenir. tls varsayılan sertifika doğrulamasıyla kurulur; http başlıkları, sınırlı yanıt metadata'sı ve tls sertifika özeti saklanır; yanıt gövdesi saklanmaz.
+- **yerel runtime:** docker compose api ve frontend portlarını localhost'a bağlar; database ve redis portları host'a açılmaz. api yalnızca iç ağa, worker iç ağ ve dış ağ bağlantısına sahiptir.
+- **kalite:** github actions backend testleri ile frontend tip kontrolü ve build'i çalıştırır.
 
-## gerçek tarama açıldığında izlenecek yol
+## tarama akışı
 
-1. yalnızca `http` veya `https` bağlantılarını kabul et; adresi kontrol ederken bağlantının kendisini açma. hatalı adresleri, kullanıcı adı/parola içeren bağlantıları ve genel kullanıma açık olmayan ip adreslerini reddet.
-2. isteği veritabanına kaydet ve işi kuyruğa ekle. bu bölüm henüz yazılmadı.
-3. arka plan işçisi yalnızca açıkça etkinleştirilen güvenlik servislerinin belgelenmiş api'lerini çağırsın. hedefe saldırma, açık arama veya sayfaları dolaşma özelliği ekleme.
-4. her servisin yanıtını ayrı sakla; hangi servisten, ne zaman ve hangi kaynakla geldiğini koru.
-5. sonuçları `malicious`, `suspicious`, `clean`, `unknown` veya `error` olarak ayır. `clean` ancak servis açıkça böyle bir sonuç döndürürse kullanılabilir. servis yoksa, zaman aşımı olursa, kota dolarsa ya da yanıt okunamazsa “temiz” deme.
-6. ham bağlantıyı ve servis yanıtlarını belirli bir süre sonra sil; günlüklerdeki gizli bilgileri maskele.
+1. `post /api/scans` en fazla 2048 karakterlik `http`/`https` adresi kabul eder. kullanıcı bilgileri, yerel adlar, genel olmayan ip adresleri ve varsayılan dışı portlar reddedilir; fragment atılır.
+2. kanonik url/hash veritabanına yazılır. aynı hedefin devam eden işi varsa ikinci job yerine mevcut kayıt döner.
+3. redis kuyruğuna `process_scan` işi yazılır. ayarlanmış bir worker alana adı çözümler; listedeki tek bir ip bile özel/ayrılmışsa bağlantı kurmaz. public adresler sabitlenmiş resolver ile istek için kullanılır.
+4. işçi `http` yanıtını yönlendirme izni olmadan alır; her `location` yeni url ve dns olarak tekrar doğrulanır. maksimum beş yönlendirme; 4 saniye bağlantı, 12 saniye toplam zaman aşımı ve en fazla 256 kib yanıt örneği vardır.
+5. güvenli metadata kaydedilir. yalnızca anahtarı bulunan provider'lar url itibar sorgular. her sonuç kendi durum, verdict, zaman ve sağlayıcı verileriyle ayrı tutulur.
+6. tarama durumu `queued`, `running`, `completed` veya `failed`; sağlayıcı durumu `not_configured`, `no_data`, `rate_limited`, `unauthorized`, `timeout`, `unavailable`, `error` veya `completed` olabilir.
 
-## dış bağlantı ve ssrf sınırı
+## verdict kuralları
 
-mevcut api adres biçimini kontrol eder; alan adını çözümlemez, bağlantıyı açmaz ve tarama yapmaz. ileride dışarı istek göndermeden önce her yönlendirmede dns yanıtını ve bağlanılan ip adresini yeniden kontrol etmek, yerel/ağ içi adresleri engellemek, dns değişimini hesaba katmak ve dış trafiği kısıtlamak gerekir. mümkünse hedef siteyi açmak yerine güvenlik servislerinin kendi api'lerini kullan. yalnızca adres metnini kontrol etmek ssrf saldırılarına karşı yeterli değildir.
+- urlhaus ve google eşleşme yok yanıtı `unknown` verir; temiz olarak yorumlanmaz.
+- virustotal motor sayıları gerçek yanıt alanlarından gösterilir. malicious/suspicious motor sayısı varsa buna öncelik verilir; yalnızca harmless sayısı varsa o provider `clean` verir.
+- bir hata veya servis anahtarı eksikliği bulgu değildir ve `clean` sayılmaz.
+- genel verdict yalnızca `completed` provider yanıtlarından türetilir; malicious, sonra suspicious, sonra varsa provider clean, aksi durumda unknown. arayüz her zaman provider sonuçlarını ayrı gösterir; “hiçbir listede bulunamadı” güvenlik garantisi değildir.
 
-## sonuçlara güven ve kaynak gösterimi
+## güven sınırı ve production eksiği
 
-gösterilen her bulgunun hangi servisten ve ne zaman geldiği belli olmalı. servisler anlaşamıyorsa bu farkı gizleme; tek bir kesinlik puanı uydurma. bir serviste sonuç bulunmaması bağlantının güvenli olduğunu kanıtlamaz. sezgisel kontroller yapılırsa bunları kesin tespit gibi değil, gerekçesiyle birlikte tahmin olarak göster.
+bu kurulum production servisi değildir. kullanıcı hesabı/kimlik doğrulama yoktur; ip başına rate limit tek başına gerçek abuse kontrolü sayılmaz. taramalar için saklama/silme süresi veya kullanıcı silme akışı yoktur. url ve sağlayıcı yanıtları veritabanında kalır. worker internet çıkışı sağlayıcı hedefleriyle firewall seviyesinde sınırlandırılmadı. gerçekte alan adı/asn hizmeti, gözlemleme, yedekleme, secrets vault, migration deploy süreci ve bağımsız güvenlik denetimi yoktur. genel ağa açmadan önce bunları ele al.
 
 ## aşamalar
 
-1. **başlangıç (mevcut):** depo yapısı, geliştirme notları, sağlık kontrolü, adres biçimi kontrolü ve testler. tarama yok.
-2. **gerçek servisler:** kullanılacak servisleri belirle, erişim anahtarlarını yapılandır, yanıtları ve kotaları test et, veri paylaşımını kullanıcıya anlat.
-3. **kalıcı işler:** veritabanı şeması, migration, kuyruk, tekrar deneme, kayıt takibi ve saklama/silme kuralları.
-4. **ürünü sağlamlaştırma:** arayüz akışını tamamla, oturum açma ve kullanım sınırları ekle, izleme ve güvenlik incelemesi yap.
-
-ilk aşamada production yayını özellikle kapsam dışı.
+1. **yerel beta:** uygulama bileşenleri, adapter'lar, ssrf kontrolleri ve testler hazır; provider anahtarları verilmemiş ve production deploy yapılmamış durumda.
+2. **servis bağlantısı:** anahtarları sunucu ortamında güvenli biçimde sağla; belgelenmiş kotalara ve gizlilik koşullarına göre her servisi gerçek yanıtla doğrula.
+3. **ürün güvenliği:** kullanıcı kimliği/izinler, saklama ve silme, kota ve abuse kontrolü, dış egress allowlist, secret yönetimi, log redaction, izleme ve yedekleme.
+4. **yayın:** yalnızca ayrı onaylı hedef ortam, risk/gizlilik incelemesi ve operasyon testlerinden sonra. ilk aşamada production yayını kapsam dışıdır.

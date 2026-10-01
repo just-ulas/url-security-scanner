@@ -1,1 +1,1 @@
-"""Provider contracts and real integrations (none enabled yet)."""
+"""gerçek itibar servisi adapter'ları ve ortak yanıt modelleri."""
